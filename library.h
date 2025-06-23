@@ -50,7 +50,7 @@ public:
                            double bias = 0);
 
     // Single epoch, computes the output(s) of (an) input(s)
-    double epoch(const std::vector<double>& inputs) const;
+    std::vector<double> predict(const std::vector<double>& inputs);
 
     // Performs a forward pass
     std::tuple<std::vector<double>, std::vector<double>, std::vector<double>>
