@@ -44,7 +44,5 @@ double Perceptron::weightedSum(const std::vector<double>& inputs) const {
 }
 
 
-class NeuralNetwork {
-    // Initial variables
-};
+NeuralNetwork::NeuralNetwork() {}
 

@@ -32,11 +32,17 @@ protected:
 };
 
 /**
- * @brief A basic Neural Network class, it has chosen number of hidden layers and Perceptron in each layer.
+* @brief Initializes a feedforward neural network with randomly assigned weights for each perceptron (neuron).
+* The user specifies the number of neurons in the Input Layer, the structure of hidden layers, and the number of neurons in the output layer.
  */
 class NeuralNetwork {
 public:
     // Constructor
+    explicit NeuralNetwork(int inputLayerLength, std::vector<int> hiddenLayersLengths, int outputLayerLength, std::vector<double> initialWeightsRange);
+
+    double epoch(const std::vector<double>& inputs) const;
+
+    std::tuple<>
 };
 
 #endif //SYNAPSELIB_LIBRARY_H
