@@ -8,31 +8,23 @@
 // Basic Neuron/Perceptron
 class Perceptron {
     protected:
-    // Sigmoid function
-    static double sigmoid(const double x) {
-        return 1.0f/(1.0f + exp(-x));
-    }
-
-    // Sum of weights * inputs
-    double weightedSum(const std::vector<double>& inputs) const {
-        return inner_product(inputs.begin(), inputs.end(), weights.begin(), 0.0);
-    }
-    std::vector<double> weights;
+    // Initial variable
+    std::vector<double> mWeights;
 
     public:
     // Constructor
-    explicit Perceptron(const std::vector<double>& weights) {
-        // Initial variables
-        this->weights = weights;
-        // float biases;
-    }
+    explicit Perceptron(const std::vector<double>& weights):
+        // Initial variable
+        mWeights(weights)
+        // ,float biases
+    {}
 
     // Replaces previous weights with new inputed weights in the index chosen
     void weightChange(const double newWeights, const int index) {
-        weights[index] = newWeights;
+        mWeights[index] = newWeights;
     }
 
-    // A single step, does the sigmoid of the weighted sum without modifying weights
+    // Calculates the sigmoid function of the weighted sum without modifying weights
     double step(const std::vector<double>& inputs) const {
         return sigmoid(weightedSum(inputs));
     }
@@ -49,11 +41,22 @@ class Perceptron {
                 break;
             }
 
-            for (int index = 0; index < weights.size(); index++) {
+            for (int index = 0; index < mWeights.size(); index++) {
                 const double gradient = error * output * (1 - output) * inputs[index];
-                weights[index] += learningRate * gradient;
+                mWeights[index] += learningRate * gradient;
             }
         }
+    }
+
+    protected:
+    // Sigmoid function
+    static double sigmoid(const double x) {
+        return 1.0f/(1.0f + exp(-x));
+    }
+
+    // Sum of weights * inputs
+    double weightedSum(const std::vector<double>& inputs) const {
+        return inner_product(inputs.begin(), inputs.end(), mWeights.begin(), 0.0);
     }
 };
 
