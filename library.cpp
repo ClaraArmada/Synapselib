@@ -2,11 +2,14 @@
 
 #include <cmath>
 #include <numeric>
+#include <cstdlib>
+#include <random>
 
 // perceptron //
 
-Perceptron::Perceptron(const std::vector<double>& weights)
-    : mWeights(weights) {}
+Perceptron::Perceptron(const std::vector<double>& weights, const double bias)
+    : mWeights(weights)
+    , mBias(bias) {}
 
 void Perceptron::weightChange(const double newWeight, const int index) {
     mWeights[index] = newWeight;
@@ -42,11 +45,44 @@ double Perceptron::sigmoid(double x) {
 }
 
 double Perceptron::weightedSum(const std::vector<double>& inputs) const {
-    return std::inner_product(inputs.begin(), inputs.end(), mWeights.begin(), 0.0);
+    return std::inner_product(inputs.begin(), inputs.end(), mWeights.begin(), 0.0) + mBias;
 }
 
 // Neural Network //
 
-NeuralNetwork::NeuralNetwork(int inputLayerLength, std::vector<int> hiddenLayersLengths,
-    int outputLayerLength, std::vector<double> initialWeightsRange) {}
+NeuralNetwork::NeuralNetwork(const int inputLayerLength, std::vector<int> hiddenLayersLengths,
+                             int outputLayerLength, std::vector<double> initialWeightsRange,
+                             double bias)
+                             :mInputLayer(inputLayerLength) {
+    int prevLayerLength = mInputLayer;
+
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<double> dis(initialWeightsRange[0], initialWeightsRange[1]);
+
+    for (const int& LayerLength : hiddenLayersLengths) {
+        std::vector<Perceptron> layer;
+        for (int _ = 0; _ < LayerLength; _++) {
+            std::vector<double> weights;
+            for (int __ = 0; __ < prevLayerLength; __++) {
+                weights.push_back(dis(gen));
+            }
+            layer.emplace_back(weights, bias);
+        }
+        mHiddenLayers.emplace_back(layer);
+        prevLayerLength = LayerLength;
+    }
+
+
+    std::vector<Perceptron> layer = {};
+    for (int _ = 0; _ < outputLayerLength; _++) {
+        std::vector<double> weights;
+        for (int __ = 0; __ < prevLayerLength; __++) {
+            weights.push_back(initialWeightsRange[0] + static_cast <float> (rand()) / static_cast <float> (RAND_MAX/(initialWeightsRange[1]-initialWeightsRange[0])));
+        }
+        layer.emplace_back(weights, bias);
+    }
+    mOutputLayer = layer;
+}
 
