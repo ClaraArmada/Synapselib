@@ -1,14 +1,23 @@
 #include "library.h"
 
 #include <cmath>
-#include <numeric>
 #include <functional>
+#include <iostream>
 #include <random>
 #include <unordered_map>
 
+// MISC FUNCTIONS
+
+ // Weighted Sum
+ //Performs the sum of wᵢ (double) * xᵢ (double), the whole added by 2
+
+double f_weightedSum(const std::vector<double>& inputs, const std::vector<double>& weights, const double bias = 0.0) {
+    return std::inner_product(inputs.begin(), inputs.end(), weights.begin(), 0.0) + bias;
+}
+
 // ACTIVATION FUNCTIONS
 
-// Activation functions
+ // Activation functions
 double f_Sigmoid(double x) {
     return 1.0 / (1.0 + exp(-x));
 }
@@ -86,14 +95,19 @@ void registerActivationFunctions() {
     paramActivationTable[e_ActivationFunctions::ParametricRelu] = f_ParametricReLU;
 }
 
+// Getter for activation functions
 double getActivated(double x, e_ActivationFunctions type, double alpha = 1.0) {
-    if (simpleActivationTable.contains(type)) {
+    if (simpleActivationTable.find(type) != simpleActivationTable.end()) {
         return simpleActivationTable[type](x);
     }
     return paramActivationTable[type](x, alpha);
 }
 
-// perceptron //
+
+
+// PERCEPTRONS AND NEURONS
+
+// base perceptron //
 
 Perceptron::Perceptron(const std::vector<double> &weights, const double bias)
     : mWeights(weights)
@@ -104,90 +118,108 @@ void Perceptron::weightChange(const double newWeight, const int index) {
     mWeights[index] = newWeight;
 }
 
-double Perceptron::step(const std::vector<double> &inputs) const {
-    return sigmoid(weightedSum(inputs));
+std::vector<double> Perceptron::getWeights() const {
+    return mWeights;
 }
 
-void Perceptron::training(const std::vector<double> &inputs, double expectedOutput,
-                          double learningRate, int maxIterations, double destinationErrorRate) {
+double Perceptron::getBias() const {
+    return mBias;
+}
+
+
+
+// NEURAL NETWORKS
+
+// Activated Perceptron
+
+ActivatedPerceptron::ActivatedPerceptron(const std::vector<double> &weights, const double bias, e_ActivationFunctions activationFunction, double alpha)
+    : mPerceptron(weights, bias)
+        , mActivationFunction(activationFunction)
+        , mAlpha(alpha) {
+}
+
+double ActivatedPerceptron::weightedSum(const std::vector<double>& inputs) const {
+    return f_weightedSum(inputs, mPerceptron.getWeights(), mPerceptron.getBias());
+}
+
+double ActivatedPerceptron::step(const std::vector<double> &inputs) const {
+    return getActivated(f_weightedSum(inputs, mPerceptron.getWeights(), mPerceptron.getBias()), mActivationFunction, mAlpha);
+}
+
+void ActivatedPerceptron::training(const std::vector<double> &inputs, double expectedOutput,
+                          double learningRate, int maxIterations, double destinationErrorRate) const {
     for (int _ = 0; _ < maxIterations; _++) {
         const double output = step(inputs);
         const double error = expectedOutput - output;
 
         if (abs(error) < destinationErrorRate) break;
 
-        for (int index = 0; index < mWeights.size(); index++) {
+        for (int index = 0; index < mPerceptron.getWeights().size(); index++) {
             const double gradient = error * output * (1 - output) * inputs[index];
-            mWeights[index] += learningRate * gradient;
+            mPerceptron.getWeights()[index] += learningRate * gradient;
         }
     }
 }
 
-std::vector<double> Perceptron::getWeights() const {
-    return mWeights;
-}
-
-double Perceptron::sigmoid(double x) {
-    return 1.0 / (1.0 + exp(-x));
-}
-
-double Perceptron::weightedSum(const std::vector<double> &inputs) const {
-    return std::inner_product(inputs.begin(), inputs.end(), mWeights.begin(), 0.0) + mBias;
-}
-
-
 // Neural Network //
 
-NeuralNetwork::NeuralNetwork(const int inputLayerLength, std::vector<int> hiddenLayersLengths,
-                             int outputLayerLength, std::vector<double> initialWeightsRange,
-                             double bias)
-    : mInputLayer(inputLayerLength) {
-    int prevLayerLength = mInputLayer;
-
+NeuralNetwork::NeuralNetwork(
+    int inputLayerLength,
+    const std::vector<std::pair<int, e_ActivationFunctions>>& hiddenLayersProperties,
+    std::pair<int, e_ActivationFunctions> outputLayerProperties,
+    const std::vector<double>& initialWeightsRange,
+    double bias
+    ) : mInputLayer(inputLayerLength),
+        mOutputLayer({}, outputLayerProperties.second, 1.0) {
 
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<double> dis(initialWeightsRange[0], initialWeightsRange[1]);
 
-    for (const int &LayerLength: hiddenLayersLengths) {
-        std::vector<Perceptron> layer;
-        for (int _ = 0; _ < LayerLength; _++) {
-            std::vector<double> weights;
-            for (int __ = 0; __ < prevLayerLength; __++) {
-                weights.push_back(dis(gen));
-            }
-            layer.emplace_back(weights, bias);
+    int prevLayerLength = inputLayerLength;
+
+    // Hidden layers
+    for (const auto &[layerSize, activation]: hiddenLayersProperties) {
+        std::vector<Perceptron> neurons;
+        for (int i = 0; i < layerSize; ++i) {
+            std::vector<double> weights(prevLayerLength);
+            for (double &w: weights) w = dis(gen);
+            neurons.emplace_back(weights, bias);
         }
-        mHiddenLayers.emplace_back(layer);
-        prevLayerLength = LayerLength;
+        mHiddenLayers.emplace_back(neurons, activation, 1.0);
+        prevLayerLength = layerSize;
     }
 
-
-    std::vector<Perceptron> layer = {};
-    for (int _ = 0; _ < outputLayerLength; _++) {
-        std::vector<double> weights;
-        for (int __ = 0; __ < prevLayerLength; __++) {
-            weights.push_back(dis(gen));
-        }
-        layer.emplace_back(weights, bias);
+    // Output layer
+    const auto &[outputSize, outputActivation] = outputLayerProperties;
+    std::vector<Perceptron> outputNeurons;
+    for (int i = 0; i < outputSize; ++i) {
+        std::vector<double> weights(prevLayerLength);
+        for (double &w: weights) w = dis(gen);
+        outputNeurons.emplace_back(weights, bias);
     }
-    mOutputLayer = layer;
+    mOutputLayer = Layer(outputNeurons, outputActivation, 1.0);
+}
+
+double NeuralNetwork::step(const std::vector<double> &inputs, Perceptron &perceptron, e_ActivationFunctions activationFunction, double alpha) const {
+    return getActivated(f_weightedSum(inputs, perceptron.getWeights(), perceptron.getBias()), activationFunction, alpha);
 }
 
 std::vector<double> NeuralNetwork::predict(const std::vector<double> &inputs) {
     std::vector<double> previousOutputs = inputs;
 
-    for (std::vector<Perceptron> &layer: mHiddenLayers) {
+    for (const Layer& layer : mHiddenLayers) {
         std::vector<double> layerOutputs;
-        for (const Perceptron &perceptron: layer) {
-            layerOutputs.push_back(perceptron.step(previousOutputs));
+        for (const Perceptron& neuron : layer.neurons) {
+            double z = f_weightedSum(previousOutputs, neuron.getWeights(), neuron.getBias());
+            layerOutputs.push_back(getActivated(z, layer.activationFunction, layer.alpha));
         }
         previousOutputs = layerOutputs;
     }
 
     std::vector<double> outputs;
-    for (Perceptron perceptron : mOutputLayer) {
-        outputs.push_back(perceptron.step(previousOutputs));
+    for (const Perceptron& perceptron : mOutputLayer.neurons) {
+        outputs.push_back(f_weightedSum(previousOutputs, perceptron.getWeights(), perceptron.getBias()));
     }
 
     return outputs;
@@ -195,6 +227,41 @@ std::vector<double> NeuralNetwork::predict(const std::vector<double> &inputs) {
 
 std::tuple<std::vector<double>, std::vector<double>, std::vector<double>>
            NeuralNetwork::forwardPass(std::vector<double> inputs) {
-
+    return {{}, {}, {}};
 }
 // std::vector<std::vector<double>> activations = {inputs};
+
+int main() {
+    registerActivationFunctions();
+    // Training data: input vectors and expected outputs
+    std::vector<std::vector<double>> trainingInputs = {
+        {0.0, 1.0},
+        {0.0, 0.0},
+        {1.0, 0.0},
+        {1.0, 1.0}
+    };
+    std::vector<double> expectedOutputs = {1.0, 0.0, 1.0, 1.0};
+
+    // Initial perceptron setup
+    std::vector<double> initialWeights = {0.5, -0.5};
+    double bias = 0.0;
+    ActivatedPerceptron perceptron(initialWeights, bias, e_ActivationFunctions::Sigmoid, 1.0);
+
+    // Train the perceptron
+    for (int epoch = 0; epoch < 1000; ++epoch) {
+        for (size_t i = 0; i < trainingInputs.size(); ++i) {
+            perceptron.training(trainingInputs[i], expectedOutputs[i], 0.1);
+        }
+    }
+
+    // Test the perceptron
+    std::cout << "Testing after training:\n";
+    for (size_t i = 0; i < trainingInputs.size(); ++i) {
+        double output = perceptron.step(trainingInputs[i]);
+        std::cout << "Input: [" << trainingInputs[i][0] << ", " << trainingInputs[i][1]
+                  << "] -> Output: " << output
+                  << " (Expected: " << expectedOutputs[i] << ")\n";
+    }
+
+    return 0;
+}
