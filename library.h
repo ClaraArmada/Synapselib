@@ -1,0 +1,6 @@
+#ifndef SYNAPSELIB_LIBRARY_H
+#define SYNAPSELIB_LIBRARY_H
+
+void hello();
+
+#endif //SYNAPSELIB_LIBRARY_H
