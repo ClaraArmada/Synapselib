@@ -3,6 +3,8 @@
 #include <cmath>
 #include <numeric>
 
+// perceptron //
+
 Perceptron::Perceptron(const std::vector<double>& weights)
     : mWeights(weights) {}
 
@@ -43,6 +45,8 @@ double Perceptron::weightedSum(const std::vector<double>& inputs) const {
     return std::inner_product(inputs.begin(), inputs.end(), mWeights.begin(), 0.0);
 }
 
+// Neural Network //
 
-NeuralNetwork::NeuralNetwork() {}
+NeuralNetwork::NeuralNetwork(int inputLayerLength, std::vector<int> hiddenLayersLengths,
+    int outputLayerLength, std::vector<double> initialWeightsRange) {}
 

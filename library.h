@@ -7,6 +7,7 @@
  * @brief A basic Perceptron (single-layer neuron).
  */
 class Perceptron {
+    std::vector<double> mWeights;
 public:
     // Constructor
     explicit Perceptron(const std::vector<double>& weights);
@@ -25,10 +26,11 @@ public:
     // Get the current weights
     std::vector<double> getWeights() const;
 
-protected:
+    // Performs a sigmoid function on x (double)
     static double sigmoid(double x);
+
+protected:
     double weightedSum(const std::vector<double>& inputs) const;
-    std::vector<double> mWeights;
 };
 
 /**
@@ -36,13 +38,30 @@ protected:
 * The user specifies the number of neurons in the Input Layer, the structure of hidden layers, and the number of neurons in the output layer.
  */
 class NeuralNetwork {
+    int inputLayer;
+    std::vector<std::vector<Perceptron>> hiddenLayer;
+    std::vector<Perceptron> outputLayer;
 public:
     // Constructor
-    explicit NeuralNetwork(int inputLayerLength, std::vector<int> hiddenLayersLengths, int outputLayerLength, std::vector<double> initialWeightsRange);
+    explicit NeuralNetwork(int inputLayerLength, std::vector<int> hiddenLayersLengths,
+                           int outputLayerLength, std::vector<double> initialWeightsRange);
 
+    // Single epoch, computes the output(s) of (an) input(s)
     double epoch(const std::vector<double>& inputs) const;
 
-    std::tuple<>
+    // Performs a forward pass
+    std::tuple<std::vector<double>, std::vector<double>, std::vector<double>>
+        forwardPass(std::vector<double> inputs);
+
+    //performs a loss calculation
+    double lossCalculation(std::vector<double> expectedValues,
+                            std::vector<double>);
+
+    void backPropagation(std::vector<double> expectedValues, std::vector<double> inputs,
+                         std::vector<double> outputActivations, std::vector<double> activations,
+                         std::vector<double> weightedSum);
+
+
 };
 
 #endif //SYNAPSELIB_LIBRARY_H
