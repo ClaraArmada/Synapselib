@@ -5,6 +5,7 @@
 #include <iostream>
 #include <random>
 #include <unordered_map>
+#include <algorithm>
 
 // MISC FUNCTIONS
 
@@ -63,6 +64,47 @@ double f_ELU (double x, double a) {
     return a * (exp(x)-1);
 }
 
+// DERIVATIVE FUNCTIONS
+
+double d_Sigmoid(double x) {
+    double y = f_Sigmoid(x);
+    return y * (1.0 - y);
+}
+
+double d_BinaryStep(double x) {
+    return 0.0;
+}
+
+double d_Linear(double x) {
+    return 1.0;
+}
+
+double d_Tanh(double x) {
+    double y = f_Tanh(x);
+    return 1.0 - y * y;
+}
+
+double d_ReLU(double x) {
+    return x > 0.0 ? 1.0 : 0.0;
+}
+
+double d_LeakyReLU(double x) {
+    return x > 0.0 ? 1.0 : 0.1;
+}
+
+double d_ParametricReLU(double x, double a) {
+    return x > 0.0 ? 1.0 : a;
+}
+
+double d_ELU(double x, double a) {
+    if (x >= 0.0) {
+        return 1.0;
+    }
+    return a * exp(x);
+}
+
+// ACTIV FUNC CODE
+
  // Enum of every activation function
 
 enum class e_ActivationFunctions {
@@ -82,6 +124,12 @@ std::unordered_map<e_ActivationFunctions, std::function<double(double)>> simpleA
 // One for 2-input functions
 std::unordered_map<e_ActivationFunctions, std::function<double(double, double)>> paramActivationTable;
 
+// One for 1-input derivatives
+std::unordered_map<e_ActivationFunctions, std::function<double(double)>> simpleActivationDerivatives;
+
+// One for 2-input derivatives
+std::unordered_map<e_ActivationFunctions, std::function<double(double, double)>> paramActivationDerivatives;
+
 // Registers the activation function
 void registerActivationFunctions() {
     simpleActivationTable[e_ActivationFunctions::Sigmoid] = f_Sigmoid;
@@ -91,8 +139,18 @@ void registerActivationFunctions() {
     simpleActivationTable[e_ActivationFunctions::ReLU] = f_ReLU;
     simpleActivationTable[e_ActivationFunctions::LeakyReLU] = f_LeakyReLU;
 
-    paramActivationTable[e_ActivationFunctions::ELU] = f_ELU;
     paramActivationTable[e_ActivationFunctions::ParametricRelu] = f_ParametricReLU;
+    paramActivationTable[e_ActivationFunctions::ELU] = f_ELU;
+
+    simpleActivationDerivatives[e_ActivationFunctions::Sigmoid] = d_Sigmoid;
+    simpleActivationDerivatives[e_ActivationFunctions::BinaryStep] = d_BinaryStep;
+    simpleActivationDerivatives[e_ActivationFunctions::Linear] = d_Linear;
+    simpleActivationDerivatives[e_ActivationFunctions::Tanh] = d_Tanh;
+    simpleActivationDerivatives[e_ActivationFunctions::ReLU] = d_ReLU;
+    simpleActivationDerivatives[e_ActivationFunctions::LeakyReLU] = d_LeakyReLU;
+
+    paramActivationDerivatives[e_ActivationFunctions::ParametricRelu] = d_ParametricReLU;
+    paramActivationDerivatives[e_ActivationFunctions::ELU] = d_ELU;
 }
 
 // Getter for activation functions
@@ -103,7 +161,12 @@ double getActivated(double x, e_ActivationFunctions type, double alpha = 1.0) {
     return paramActivationTable[type](x, alpha);
 }
 
-
+double getActivatedDerivative(double x, e_ActivationFunctions type, double alpha = 1.0) {
+    if (simpleActivationDerivatives.find(type) != simpleActivationDerivatives.end()) {
+        return simpleActivationDerivatives[type](x);
+    }
+    return paramActivationDerivatives[type](x, alpha);
+}
 
 // PERCEPTRONS AND NEURONS
 
@@ -149,13 +212,15 @@ double ActivatedPerceptron::step(const std::vector<double> &inputs) const {
 void ActivatedPerceptron::training(const std::vector<double> &inputs, double expectedOutput,
                           double learningRate, int maxIterations, double destinationErrorRate) const {
     for (int _ = 0; _ < maxIterations; _++) {
-        const double output = step(inputs);
+        double z = f_weightedSum(inputs, mPerceptron.getWeights(), mPerceptron.getBias());
+        double output = getActivated(z, mActivationFunction, mAlpha);
+        double derivative = getActivatedDerivative(z, mActivationFunction, mAlpha);
         const double error = expectedOutput - output;
 
         if (abs(error) < destinationErrorRate) break;
 
         for (int index = 0; index < mPerceptron.getWeights().size(); index++) {
-            const double gradient = error * output * (1 - output) * inputs[index];
+            double gradient = error * derivative * inputs[index];
             mPerceptron.getWeights()[index] += learningRate * gradient;
         }
     }
@@ -201,10 +266,6 @@ NeuralNetwork::NeuralNetwork(
     mOutputLayer = Layer(outputNeurons, outputActivation, 1.0);
 }
 
-double NeuralNetwork::step(const std::vector<double> &inputs, Perceptron &perceptron, e_ActivationFunctions activationFunction, double alpha) const {
-    return getActivated(f_weightedSum(inputs, perceptron.getWeights(), perceptron.getBias()), activationFunction, alpha);
-}
-
 std::vector<double> NeuralNetwork::predict(const std::vector<double> &inputs) {
     std::vector<double> previousOutputs = inputs;
 
@@ -225,11 +286,142 @@ std::vector<double> NeuralNetwork::predict(const std::vector<double> &inputs) {
     return outputs;
 }
 
-std::tuple<std::vector<double>, std::vector<double>, std::vector<double>>
+std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>>
            NeuralNetwork::forwardPass(std::vector<double> inputs) {
-    return {{}, {}, {}};
+    std::vector<std::vector<double>> activations = {inputs};
+    std::vector<std::vector<double>> weightedSums;
+
+    std::vector<double> previousOutputs = inputs;
+
+    for (Layer layer : mHiddenLayers) {
+        std::vector<double> layerWeightedSums;
+        std::vector<double> layerActivations;
+
+        for (Perceptron perceptron : layer.neurons) {
+            double ws = f_weightedSum(previousOutputs, perceptron.getWeights(), perceptron.getBias());
+            double act = getActivated(ws, layer.activationFunction, layer.alpha);
+            layerWeightedSums.push_back(ws);
+            layerActivations.push_back(act);
+        }
+
+        weightedSums.push_back(layerWeightedSums);
+        activations.push_back(layerActivations);
+        previousOutputs = layerActivations;
+    }
+
+    std::vector<double> outputWeightedSums;
+    std::vector<double> outputActivations;
+
+    for (Perceptron perceptron : mOutputLayer.neurons) {
+        double ws = f_weightedSum(previousOutputs, perceptron.getWeights(), perceptron.getBias());
+        double act = getActivated(ws, mOutputLayer.activationFunction, mOutputLayer.alpha);
+        outputWeightedSums.push_back(ws);
+        outputActivations.push_back(act);
+    }
+
+    weightedSums.push_back(outputWeightedSums);
+    activations.push_back(outputActivations);
+
+    return {outputActivations, activations, weightedSums};
 }
-// std::vector<std::vector<double>> activations = {inputs};
+
+double NeuralNetwork::lossCalculation(std::vector<double> expectedValues,
+                            std::vector<double> outputValues)
+{
+    double loss = 0.0;
+    for (size_t i = 0; i < expectedValues.size(); ++i) {
+        double error = expectedValues[i] - outputValues[i];
+        loss += error * error;
+    }
+    return loss / expectedValues.size();
+}
+
+std::vector<std::vector<double>> NeuralNetwork::backPropagation(const std::vector<double>& expectedValues,
+                                                                const std::vector<double>& outputActivations,
+                                                                const std::vector<std::vector<double>>& activations,
+                                                                const std::vector<std::vector<double>>& weightedSums) {
+    std::vector<std::vector<double>> deltaAllLayers;
+
+    // Output layer deltas
+    std::vector<double> outputDeltas;
+    for (size_t j = 0; j < mOutputLayer.neurons.size(); ++j) {
+        double output = outputActivations[j];
+        double delta = (expectedValues[j] - output) * output * (1.0 - output);
+        outputDeltas.push_back(delta);
+    }
+
+    deltaAllLayers.push_back(outputDeltas);
+
+    Layer nextLayer = mOutputLayer;
+    std::vector<double> nextDeltas = outputDeltas;
+
+    for (int layer_idx = static_cast<int>(mHiddenLayers.size()) - 1; layer_idx >= 0; --layer_idx) {
+        Layer& layer = mHiddenLayers[layer_idx];
+        const std::vector<double>& layerActivations = activations[layer_idx + 1];
+        std::vector<double> layerDeltas;
+
+        for (size_t i = 0; i < layerActivations.size(); ++i) {
+            double neuron_activation = layerActivations[i];
+            double sum_delta = 0.0;
+
+            for (size_t j = 0; j < nextLayer.neurons.size(); ++j) {
+                double weight = nextLayer.neurons[j].getWeights()[i];
+                sum_delta += weight * nextDeltas[j];
+            }
+
+            double z = weightedSums[layer_idx][i];
+            double derivative = getActivatedDerivative(z, layer.activationFunction, layer.alpha);
+            layerDeltas.push_back(sum_delta * derivative);
+        }
+
+        deltaAllLayers.push_back(layerDeltas);
+        nextLayer = layer;
+        nextDeltas = layerDeltas;
+    }
+
+    std::reverse(deltaAllLayers.begin(), deltaAllLayers.end());
+    return deltaAllLayers;
+}
+
+void NeuralNetwork::weightUpdates(const std::vector<std::vector<double>>& activations, const std::vector<std::vector<double>>& deltaAllLayers, double learningRate) {// Hidden layers
+    for (int layer_idx = 0; layer_idx < mHiddenLayers.size(); ++layer_idx) {
+        const std::vector<double>& prevActivations = activations[layer_idx];
+        const std::vector<double>& deltas = deltaAllLayers[layer_idx];
+        Layer& layer = mHiddenLayers[layer_idx];
+
+        for (size_t perceptron_idx = 0; perceptron_idx < layer.neurons.size(); ++perceptron_idx) {
+            Perceptron& perceptron = layer.neurons[perceptron_idx];
+            std::vector<double> weights = perceptron.getWeights();
+
+            for (size_t w_idx = 0; w_idx < weights.size(); ++w_idx) {
+                double gradient = deltas[perceptron_idx] * prevActivations[w_idx];
+                perceptron.weightChange(weights[w_idx] + learningRate * gradient, w_idx);
+            }
+        }
+    }
+
+    // Output layer
+    const std::vector<double>& prevActivations = activations[activations.size() - 2];
+    const std::vector<double>& deltas = deltaAllLayers.back();
+
+    for (size_t perceptron_idx = 0; perceptron_idx < mOutputLayer.neurons.size(); ++perceptron_idx) {
+        Perceptron& perceptron = mOutputLayer.neurons[perceptron_idx];
+        std::vector<double> weights = perceptron.getWeights();
+
+        for (size_t w_idx = 0; w_idx < weights.size(); ++w_idx) {
+            double gradient = deltas[perceptron_idx] * prevActivations[w_idx];
+            perceptron.weightChange(weights[w_idx] + learningRate * gradient, w_idx);
+        }
+    }
+}
+
+
+
+
+
+
+
+
 
 int main() {
     registerActivationFunctions();

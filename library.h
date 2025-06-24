@@ -82,25 +82,27 @@ public:
                   const std::vector<double>& initialWeightsRange,
                   double bias);
 
-    // Compute the output for a given input for a single neuron
-    double step(const std::vector<double> &inputs, Perceptron &perceptron, e_ActivationFunctions activationFunction, double alpha) const;
-
     // Single epoch, computes the output(s) of (an) input(s)
     std::vector<double> predict(const std::vector<double>& inputs);
 
     // Performs a forward pass
-    std::tuple<std::vector<double>, std::vector<double>, std::vector<double>>
+    std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>>
         forwardPass(std::vector<double> inputs);
 
-    //performs a loss calculation
+    // Performs a loss calculation
+    // Returns the Mean Squared Error (MSE)
     double lossCalculation(std::vector<double> expectedValues,
-                            std::vector<double>);
+                            std::vector<double> outputValues);
 
-    std::vector<double> backPropagation(std::vector<double> expectedValues, std::vector<double> inputs,
-                                        std::vector<double> outputActivations, std::vector<double> activations,
-                                        std::vector<double> weightedSum);
+    // Performs backpropagation
+    std::vector<std::vector<double>> backPropagation(const std::vector<double>& expectedValues,
+                                                                    const std::vector<double>& outputActivations,
+                                                                    const std::vector<std::vector<double>>& activations,
+                                                                    const std::vector<std::vector<double>>& weightedSums);
 
-    void weightUpdates(std::vector<double>, std::vector<double>, double learningRate);
+    void weightUpdates(const std::vector<std::vector<double>>& activations,
+                              const std::vector<std::vector<double>>& deltaAllLayers,
+                              double learningRate);
 
     void training(std::vector<double> inputs, std::vector<double> expectedOutput, double learningRate = 0.05, int maxIterations = 1000, int printEvery = 50);
 };
