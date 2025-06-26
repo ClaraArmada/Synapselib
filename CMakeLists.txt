@@ -3,5 +3,5 @@ project(Synapselib)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_library(Synapselib STATIC library.cpp
-)
+add_library(SynapselibLib STATIC library.cpp)
+add_executable(Synapselib library.cpp)

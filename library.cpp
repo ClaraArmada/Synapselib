@@ -7,6 +7,10 @@
 #include <unordered_map>
 #include <algorithm>
 
+#include <stdexcept>
+#include <cassert>
+
+
 // MISC FUNCTIONS
 
  // Weighted Sum
@@ -105,53 +109,37 @@ double d_ELU(double x, double a) {
 
 // ACTIV FUNC CODE
 
- // Enum of every activation function
-
-enum class e_ActivationFunctions {
-    Sigmoid,
-    BinaryStep,
-    Linear,
-    Tanh,
-    ReLU,
-    LeakyReLU,
-    ParametricRelu,
-    ELU
+// One for 1-input functions
+std::unordered_map<e_ActivationFunctions, std::function<double(double)>> simpleActivationTable = {
+    {e_ActivationFunctions::Sigmoid, f_Sigmoid},
+    {e_ActivationFunctions::BinaryStep, f_BinaryStep},
+    {e_ActivationFunctions::Linear, f_Linear},
+    {e_ActivationFunctions::Tanh, f_Tanh},
+    {e_ActivationFunctions::ReLU, f_ReLU},
+    {e_ActivationFunctions::LeakyReLU, f_LeakyReLU}
 };
 
-// One for 1-input functions
-std::unordered_map<e_ActivationFunctions, std::function<double(double)>> simpleActivationTable;
-
 // One for 2-input functions
-std::unordered_map<e_ActivationFunctions, std::function<double(double, double)>> paramActivationTable;
+std::unordered_map<e_ActivationFunctions, std::function<double(double, double)>> paramActivationTable = {
+    {e_ActivationFunctions::ParametricRelu, f_ParametricReLU},
+    {e_ActivationFunctions::ELU, f_ELU}
+};
 
 // One for 1-input derivatives
-std::unordered_map<e_ActivationFunctions, std::function<double(double)>> simpleActivationDerivatives;
+std::unordered_map<e_ActivationFunctions, std::function<double(double)>> simpleActivationDerivatives = {
+    {e_ActivationFunctions::Sigmoid, d_Sigmoid},
+    {e_ActivationFunctions::BinaryStep, d_BinaryStep},
+    {e_ActivationFunctions::Linear, d_Linear},
+    {e_ActivationFunctions::Tanh, d_Tanh},
+    {e_ActivationFunctions::ReLU, d_ReLU},
+    {e_ActivationFunctions::LeakyReLU, d_LeakyReLU}
+};
 
 // One for 2-input derivatives
-std::unordered_map<e_ActivationFunctions, std::function<double(double, double)>> paramActivationDerivatives;
-
-// Registers the activation function
-void registerActivationFunctions() {
-    simpleActivationTable[e_ActivationFunctions::Sigmoid] = f_Sigmoid;
-    simpleActivationTable[e_ActivationFunctions::BinaryStep] = f_BinaryStep;
-    simpleActivationTable[e_ActivationFunctions::Linear] = f_Linear;
-    simpleActivationTable[e_ActivationFunctions::Tanh] = f_Tanh;
-    simpleActivationTable[e_ActivationFunctions::ReLU] = f_ReLU;
-    simpleActivationTable[e_ActivationFunctions::LeakyReLU] = f_LeakyReLU;
-
-    paramActivationTable[e_ActivationFunctions::ParametricRelu] = f_ParametricReLU;
-    paramActivationTable[e_ActivationFunctions::ELU] = f_ELU;
-
-    simpleActivationDerivatives[e_ActivationFunctions::Sigmoid] = d_Sigmoid;
-    simpleActivationDerivatives[e_ActivationFunctions::BinaryStep] = d_BinaryStep;
-    simpleActivationDerivatives[e_ActivationFunctions::Linear] = d_Linear;
-    simpleActivationDerivatives[e_ActivationFunctions::Tanh] = d_Tanh;
-    simpleActivationDerivatives[e_ActivationFunctions::ReLU] = d_ReLU;
-    simpleActivationDerivatives[e_ActivationFunctions::LeakyReLU] = d_LeakyReLU;
-
-    paramActivationDerivatives[e_ActivationFunctions::ParametricRelu] = d_ParametricReLU;
-    paramActivationDerivatives[e_ActivationFunctions::ELU] = d_ELU;
-}
+std::unordered_map<e_ActivationFunctions, std::function<double(double, double)>> paramActivationDerivatives = {
+    {e_ActivationFunctions::ParametricRelu, d_ParametricReLU},
+    {e_ActivationFunctions::ELU, d_ELU}
+};
 
 // Getter for activation functions
 double getActivated(double x, e_ActivationFunctions type, double alpha = 1.0) {
@@ -178,10 +166,18 @@ Perceptron::Perceptron(const std::vector<double> &weights, const double bias)
 }
 
 void Perceptron::weightChange(const double newWeight, const int index) {
+    if (index < 0 || index >= static_cast<int>(mWeights.size())) {
+        throw std::out_of_range("Weight index out of range");
+    }
+
     mWeights[index] = newWeight;
 }
 
 std::vector<double> Perceptron::getWeights() const {
+    return mWeights;
+}
+
+std::vector<double>& Perceptron::accessWeights() {
     return mWeights;
 }
 
@@ -210,21 +206,26 @@ double ActivatedPerceptron::step(const std::vector<double> &inputs) const {
 }
 
 void ActivatedPerceptron::training(const std::vector<double> &inputs, double expectedOutput,
-                          double learningRate, int maxIterations, double destinationErrorRate) const {
+                          double learningRate, int maxIterations, double destinationErrorRate) {
+    // Remove 'const' from this method signature in both .h and .cpp files
+
     for (int _ = 0; _ < maxIterations; _++) {
         double z = f_weightedSum(inputs, mPerceptron.getWeights(), mPerceptron.getBias());
         double output = getActivated(z, mActivationFunction, mAlpha);
         double derivative = getActivatedDerivative(z, mActivationFunction, mAlpha);
         const double error = expectedOutput - output;
 
-        if (abs(error) < destinationErrorRate) break;
+        if (std::abs(error) < destinationErrorRate) break; // Use std::abs instead of abs
 
-        for (int index = 0; index < mPerceptron.getWeights().size(); index++) {
+        // Fix the weight access issue
+        std::vector<double>& weights = mPerceptron.accessWeights();
+        for (size_t index = 0; index < weights.size(); index++) {
             double gradient = error * derivative * inputs[index];
-            mPerceptron.getWeights()[index] += learningRate * gradient;
+            weights[index] += learningRate * gradient;
         }
     }
 }
+
 
 // Neural Network //
 
@@ -234,8 +235,7 @@ NeuralNetwork::NeuralNetwork(
     std::pair<int, e_ActivationFunctions> outputLayerProperties,
     const std::vector<double>& initialWeightsRange,
     double bias
-    ) : mInputLayer(inputLayerLength),
-        mOutputLayer({}, outputLayerProperties.second, 1.0) {
+    ) : mInputLayer(inputLayerLength), mOutputLayer() {  // Initialize mOutputLayer with default constructor
 
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -255,7 +255,7 @@ NeuralNetwork::NeuralNetwork(
         prevLayerLength = layerSize;
     }
 
-    // Output layer
+    // Output layer - Properly initialize mOutputLayer
     const auto &[outputSize, outputActivation] = outputLayerProperties;
     std::vector<Perceptron> outputNeurons;
     for (int i = 0; i < outputSize; ++i) {
@@ -263,10 +263,18 @@ NeuralNetwork::NeuralNetwork(
         for (double &w: weights) w = dis(gen);
         outputNeurons.emplace_back(weights, bias);
     }
+
+    // Assign the properly constructed layer to mOutputLayer
     mOutputLayer = Layer(outputNeurons, outputActivation, 1.0);
 }
 
 std::vector<double> NeuralNetwork::predict(const std::vector<double> &inputs) {
+    if (inputs.size() != static_cast<size_t>(mInputLayer)) {
+        throw std::invalid_argument("Input size mismatch. Expected " +
+                                  std::to_string(mInputLayer) +
+                                  " but got " + std::to_string(inputs.size()));
+    }
+
     std::vector<double> previousOutputs = inputs;
 
     for (const Layer& layer : mHiddenLayers) {
@@ -287,17 +295,19 @@ std::vector<double> NeuralNetwork::predict(const std::vector<double> &inputs) {
 }
 
 std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>>
-           NeuralNetwork::forwardPass(std::vector<double> inputs) {
+           NeuralNetwork::forwardPass(const std::vector<double>& inputs) {
     std::vector<std::vector<double>> activations = {inputs};
     std::vector<std::vector<double>> weightedSums;
 
     std::vector<double> previousOutputs = inputs;
 
-    for (Layer layer : mHiddenLayers) {
+    // Use const reference instead of copying the entire Layer
+    for (const Layer& layer : mHiddenLayers) {
         std::vector<double> layerWeightedSums;
         std::vector<double> layerActivations;
 
-        for (Perceptron perceptron : layer.neurons) {
+        // Use const reference instead of copying the entire Perceptron
+        for (const Perceptron& perceptron : layer.neurons) {
             double ws = f_weightedSum(previousOutputs, perceptron.getWeights(), perceptron.getBias());
             double act = getActivated(ws, layer.activationFunction, layer.alpha);
             layerWeightedSums.push_back(ws);
@@ -312,7 +322,8 @@ std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<st
     std::vector<double> outputWeightedSums;
     std::vector<double> outputActivations;
 
-    for (Perceptron perceptron : mOutputLayer.neurons) {
+    // Use const reference instead of copying the entire Perceptron
+    for (const Perceptron& perceptron : mOutputLayer.neurons) {
         double ws = f_weightedSum(previousOutputs, perceptron.getWeights(), perceptron.getBias());
         double act = getActivated(ws, mOutputLayer.activationFunction, mOutputLayer.alpha);
         outputWeightedSums.push_back(ws);
@@ -322,19 +333,27 @@ std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<st
     weightedSums.push_back(outputWeightedSums);
     activations.push_back(outputActivations);
 
-    return {outputActivations, activations, weightedSums};
+    return std::make_tuple(outputActivations, activations, weightedSums);
 }
+
 
 double NeuralNetwork::lossCalculation(std::vector<double> expectedValues,
                             std::vector<double> outputValues)
 {
+    if (expectedValues.size() != outputValues.size()) {
+        throw std::invalid_argument("Size mismatch in loss calculation");
+    }
+
     double loss = 0.0;
     for (size_t i = 0; i < expectedValues.size(); ++i) {
         double error = expectedValues[i] - outputValues[i];
         loss += error * error;
     }
+
     return loss / expectedValues.size();
 }
+
+
 
 std::vector<std::vector<double>> NeuralNetwork::backPropagation(const std::vector<double>& expectedValues,
                                                                 const std::vector<double>& outputActivations,
@@ -342,7 +361,6 @@ std::vector<std::vector<double>> NeuralNetwork::backPropagation(const std::vecto
                                                                 const std::vector<std::vector<double>>& weightedSums) {
     std::vector<std::vector<double>> deltaAllLayers;
 
-    // Output layer deltas
     std::vector<double> outputDeltas;
     for (size_t j = 0; j < mOutputLayer.neurons.size(); ++j) {
         double output = outputActivations[j];
@@ -352,20 +370,19 @@ std::vector<std::vector<double>> NeuralNetwork::backPropagation(const std::vecto
 
     deltaAllLayers.push_back(outputDeltas);
 
-    Layer nextLayer = mOutputLayer;
+    const Layer* nextLayer = &mOutputLayer;
     std::vector<double> nextDeltas = outputDeltas;
 
     for (int layer_idx = static_cast<int>(mHiddenLayers.size()) - 1; layer_idx >= 0; --layer_idx) {
-        Layer& layer = mHiddenLayers[layer_idx];
+        const Layer& layer = mHiddenLayers[layer_idx];
         const std::vector<double>& layerActivations = activations[layer_idx + 1];
         std::vector<double> layerDeltas;
 
         for (size_t i = 0; i < layerActivations.size(); ++i) {
-            double neuron_activation = layerActivations[i];
             double sum_delta = 0.0;
 
-            for (size_t j = 0; j < nextLayer.neurons.size(); ++j) {
-                double weight = nextLayer.neurons[j].getWeights()[i];
+            for (size_t j = 0; j < nextLayer->neurons.size(); ++j) {
+                double weight = nextLayer->neurons[j].getWeights()[i];
                 sum_delta += weight * nextDeltas[j];
             }
 
@@ -375,13 +392,14 @@ std::vector<std::vector<double>> NeuralNetwork::backPropagation(const std::vecto
         }
 
         deltaAllLayers.push_back(layerDeltas);
-        nextLayer = layer;
+        nextLayer = &layer;
         nextDeltas = layerDeltas;
     }
 
     std::reverse(deltaAllLayers.begin(), deltaAllLayers.end());
     return deltaAllLayers;
 }
+
 
 void NeuralNetwork::weightUpdates(const std::vector<std::vector<double>>& activations, const std::vector<std::vector<double>>& deltaAllLayers, double learningRate) {// Hidden layers
     for (int layer_idx = 0; layer_idx < mHiddenLayers.size(); ++layer_idx) {
@@ -391,11 +409,11 @@ void NeuralNetwork::weightUpdates(const std::vector<std::vector<double>>& activa
 
         for (size_t perceptron_idx = 0; perceptron_idx < layer.neurons.size(); ++perceptron_idx) {
             Perceptron& perceptron = layer.neurons[perceptron_idx];
-            std::vector<double> weights = perceptron.getWeights();
+            std::vector<double>& weights = perceptron.accessWeights();
 
             for (size_t w_idx = 0; w_idx < weights.size(); ++w_idx) {
                 double gradient = deltas[perceptron_idx] * prevActivations[w_idx];
-                perceptron.weightChange(weights[w_idx] + learningRate * gradient, w_idx);
+                weights[w_idx] += learningRate * gradient;
             }
         }
     }
@@ -406,11 +424,43 @@ void NeuralNetwork::weightUpdates(const std::vector<std::vector<double>>& activa
 
     for (size_t perceptron_idx = 0; perceptron_idx < mOutputLayer.neurons.size(); ++perceptron_idx) {
         Perceptron& perceptron = mOutputLayer.neurons[perceptron_idx];
-        std::vector<double> weights = perceptron.getWeights();
+        std::vector<double>& weights = perceptron.accessWeights();
 
         for (size_t w_idx = 0; w_idx < weights.size(); ++w_idx) {
             double gradient = deltas[perceptron_idx] * prevActivations[w_idx];
-            perceptron.weightChange(weights[w_idx] + learningRate * gradient, w_idx);
+            weights[w_idx] += learningRate * gradient;
+        }
+    }
+}
+
+void NeuralNetwork::training(const std::vector<double>& inputs,
+                           const std::vector<double>& expectedOutput,
+                           double learningRate,
+                           int maxIterations,
+                           int printEvery) {
+    // Fix: Handle printEvery = 0 case
+    if (printEvery <= 0) {
+        printEvery = maxIterations; // Only print at the end
+    }
+
+    for (int epoch = 0; epoch < maxIterations; ++epoch) {
+        std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>> forwardResult = forwardPass(inputs);
+
+        std::vector<double>& outputActivations = std::get<0>(forwardResult);
+        std::vector<std::vector<double>>& activations = std::get<1>(forwardResult);
+        std::vector<std::vector<double>>& weightedSums = std::get<2>(forwardResult);
+
+        double loss = lossCalculation(expectedOutput, outputActivations);
+
+        if (epoch % printEvery == 0 || epoch == maxIterations - 1 || loss < 1e-6) {
+            std::cout << "Epoch: " << epoch << " Loss: " << loss << std::endl;
+        }
+
+        std::vector<std::vector<double>> deltaAllLayers = backPropagation(expectedOutput, outputActivations, activations, weightedSums);
+        weightUpdates(activations, deltaAllLayers, learningRate);
+
+        if (loss < 1e-6) {
+            break;
         }
     }
 }
@@ -420,40 +470,61 @@ void NeuralNetwork::weightUpdates(const std::vector<std::vector<double>>& activa
 
 
 
-
-
-
 int main() {
-    registerActivationFunctions();
-    // Training data: input vectors and expected outputs
-    std::vector<std::vector<double>> trainingInputs = {
-        {0.0, 1.0},
-        {0.0, 0.0},
-        {1.0, 0.0},
-        {1.0, 1.0}
+    std::cout << "Starting program..." << std::endl;
+
+    std::cout << "Creating neural network..." << std::endl;
+    NeuralNetwork net(
+        2,
+        { {2, e_ActivationFunctions::Sigmoid} },
+        {1, e_ActivationFunctions::Sigmoid},
+        {-1.0, 1.0}, // weight range
+        1.0          // bias
+    );
+    std::cout << "Neural network created successfully!" << std::endl;
+
+    std::vector<std::vector<double>> inputs = {
+        {0, 0},
+        {0, 1},
+        {1, 0},
+        {1, 1}
     };
-    std::vector<double> expectedOutputs = {1.0, 0.0, 1.0, 1.0};
 
-    // Initial perceptron setup
-    std::vector<double> initialWeights = {0.5, -0.5};
-    double bias = 0.0;
-    ActivatedPerceptron perceptron(initialWeights, bias, e_ActivationFunctions::Sigmoid, 1.0);
+    std::vector<std::vector<double>> expectedOutputs = {
+        {0},
+        {1},
+        {1},
+        {0}
+    };
 
-    // Train the perceptron
-    for (int epoch = 0; epoch < 1000; ++epoch) {
-        for (size_t i = 0; i < trainingInputs.size(); ++i) {
-            perceptron.training(trainingInputs[i], expectedOutputs[i], 0.1);
+    std::cout << "Starting training..." << std::endl;
+
+    for (int epoch = 0; epoch < 5000; ++epoch) {
+        if (epoch % 1000 == 0) {
+            std::cout << "Epoch " << epoch << std::endl;
         }
+
+        std::cout << "About to start training batch for epoch " << epoch << std::endl;
+
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            std::cout << "About to train with input " << i << ": [" << inputs[i][0] << ", " << inputs[i][1] << "]" << std::endl;
+            std::cout << "Expected output: [" << expectedOutputs[i][0] << "]" << std::endl;
+
+            try {
+                net.training(inputs[i], expectedOutputs[i], 0.5, 1, 0);
+                std::cout << "Training completed for input " << i << std::endl;
+            } catch (const std::exception& e) {
+                std::cout << "Exception caught during training: " << e.what() << std::endl;
+                return -1;
+            } catch (...) {
+                std::cout << "Unknown exception caught during training" << std::endl;
+                return -1;
+            }
+        }
+
+        // Rest of your training code...
     }
 
-    // Test the perceptron
-    std::cout << "Testing after training:\n";
-    for (size_t i = 0; i < trainingInputs.size(); ++i) {
-        double output = perceptron.step(trainingInputs[i]);
-        std::cout << "Input: [" << trainingInputs[i][0] << ", " << trainingInputs[i][1]
-                  << "] -> Output: " << output
-                  << " (Expected: " << expectedOutputs[i] << ")\n";
-    }
-
+    std::cout << "Program completed successfully!" << std::endl;
     return 0;
 }

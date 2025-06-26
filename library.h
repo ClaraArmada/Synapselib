@@ -1,13 +1,23 @@
 #ifndef SYNAPSELIB_LIBRARY_H
 #define SYNAPSELIB_LIBRARY_H
 
+#include <memory>
 #include <vector>
 #include <random>
 
 /**
  * @brief Enum of every Activation Function: Sigmoid, BinaryStep, Linear, Tanh, ReLU, LeakyReLU, ParametricRelu, ELU.
  */
-enum class e_ActivationFunctions;
+enum class e_ActivationFunctions {
+    Sigmoid,
+    BinaryStep,
+    Linear,
+    Tanh,
+    ReLU,
+    LeakyReLU,
+    ParametricRelu,
+    ELU
+};
 
 /**
  * @brief A basic non-functional Perceptron, to be used for other classes.
@@ -24,6 +34,9 @@ public:
 
     // Get the current weights (vector of doubles)
     std::vector<double> getWeights() const;
+
+    // Accesses the weights
+    std::vector<double>& accessWeights();
 
     // Get the current bias (double)
     double getBias() const;
@@ -47,9 +60,8 @@ public:
     double step(const std::vector<double>& inputs) const;
 
     // Train perceptron with input (double) data
-    void training(const std::vector<double>& inputs, double expectedOutput,
-                  double learningRate = 0.05, int maxIterations = 1000,
-                  double destinationErrorRate = 1e-6) const;
+    void training(const std::vector<double> &inputs, double expectedOutput,
+                          double learningRate, int maxIterations, double destinationErrorRate);
 };
 
 
@@ -60,34 +72,56 @@ struct Layer {
     e_ActivationFunctions activationFunction;
     double alpha = 1.0;
 
+    // Add default constructor
+    Layer() : activationFunction(e_ActivationFunctions::Sigmoid), alpha(1.0) {}
+
     Layer(std::vector<Perceptron> neurons, e_ActivationFunctions func, double alpha = 1.0)
         : neurons(std::move(neurons)), activationFunction(func), alpha(alpha) {}
 };
 
-
+// Add constexpr for compile-time constants
+constexpr double DEFAULT_LEARNING_RATE = 0.05;
+constexpr double DEFAULT_ERROR_THRESHOLD = 1e-6;
+constexpr int DEFAULT_MAX_ITERATIONS = 1000;
 
 /**
 * @brief Initializes a feedforward neural network with randomly assigned weights for each perceptron (neuron).
 * The user specifies the number of neurons in the Input Layer, the structure of hidden layers, and the number of neurons in the output layer.
  */
 class NeuralNetwork {
+    std::unique_ptr<std::mt19937> m_generator;
     int mInputLayer;
     std::vector<Layer> mHiddenLayers;
     Layer mOutputLayer;
 public:
     // Constructor
-    NeuralNetwork(int inputLayerLength,
-                  const std::vector<std::pair<int, e_ActivationFunctions>>& hiddenLayersProperties,
-                  std::pair<int, e_ActivationFunctions> outputLayerProperties,
-                  const std::vector<double>& initialWeightsRange,
-                  double bias);
+    explicit NeuralNetwork(int inputLayerLength,
+                          const std::vector<std::pair<int, e_ActivationFunctions>>& hiddenLayersProperties,
+                          std::pair<int, e_ActivationFunctions> outputLayerProperties,
+                          const std::vector<double>& initialWeightsRange = {-1.0, 1.0},
+                          double bias = 0.0);
+
+    // Copy constructor
+    NeuralNetwork(const NeuralNetwork& other);
+
+    // Move constructor
+    NeuralNetwork(NeuralNetwork&& other) noexcept;
+
+    // Copy assignment
+    NeuralNetwork& operator=(const NeuralNetwork& other);
+
+    // Move assignment
+    NeuralNetwork& operator=(NeuralNetwork&& other) noexcept;
+
+    // Destructor
+    ~NeuralNetwork() = default;
 
     // Single epoch, computes the output(s) of (an) input(s)
     std::vector<double> predict(const std::vector<double>& inputs);
 
     // Performs a forward pass
     std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>>
-        forwardPass(std::vector<double> inputs);
+           forwardPass(const std::vector<double>& inputs);
 
     // Performs a loss calculation
     // Returns the Mean Squared Error (MSE)
@@ -104,7 +138,11 @@ public:
                               const std::vector<std::vector<double>>& deltaAllLayers,
                               double learningRate);
 
-    void training(std::vector<double> inputs, std::vector<double> expectedOutput, double learningRate = 0.05, int maxIterations = 1000, int printEvery = 50);
+    void training(const std::vector<double>& inputs,
+                           const std::vector<double>& expectedOutput,
+                           double learningRate = 0.05,
+                           int maxIterations = 1000,
+                           int printEvery = 50);
 };
 
 #endif //SYNAPSELIB_LIBRARY_H
