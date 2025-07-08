@@ -5,6 +5,7 @@
 #include <vector>
 #include <random>
 
+
 /**
  * @brief Enum of every Activation Function: Sigmoid, BinaryStep, Linear, Tanh, ReLU, LeakyReLU, ParametricRelu, ELU.
  */

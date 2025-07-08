@@ -8,7 +8,7 @@
 #include <algorithm>
 
 #include <stdexcept>
-#include <cassert>
+#include <pybind11/pybind11.h>
 
 
 // MISC FUNCTIONS
