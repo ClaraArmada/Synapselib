@@ -1,9 +1,9 @@
 import importlib
 import sys
 
-spec = importlib.util.spec_from_file_location("synapselib", "cmake-build-release/synapselib.pyd")
+spec = importlib.util.spec_from_file_location("Synapselib", "cmake-build-release/Synapselib.pyd")
 Synapselib = importlib.util.module_from_spec(spec)
-sys.modules["synapselib"] = Synapselib
+sys.modules["Synapselib"] = Synapselib
 spec.loader.exec_module(Synapselib)
 
 nn = Synapselib.NeuralNetwork(
