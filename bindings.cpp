@@ -5,7 +5,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(synapselib, m) {
+PYBIND11_MODULE(Synapselib, m) {
     m.doc() = "Python bindings for Clara's neural network library";
 
     // Enum binding
