@@ -8,8 +8,6 @@
 #include <algorithm>
 
 #include <stdexcept>
-#include <pybind11/pybind11.h>
-
 
 // MISC FUNCTIONS
 
