@@ -7,11 +7,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Add pybind11
 add_subdirectory(external/pybind11)
 
-# Create the Python extension module
-add_library(Synapselib MODULE
-        library.cpp
-        bindings.cpp
-)
+add_library(library STATIC library.cpp)
+pybind11_add_module(Synapselib bindings.cpp)
+target_link_libraries(Synapselib PRIVATE library)
 
 # Include headers if needed
 target_include_directories(Synapselib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

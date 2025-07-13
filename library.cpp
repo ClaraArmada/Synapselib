@@ -225,6 +225,42 @@ void ActivatedPerceptron::training(const std::vector<double> &inputs, double exp
 }
 
 
+//  //
+
+ConvolutionLayer::ConvolutionLayer(const std::vector<int> kernelsFromCenter, int kernelsCount, int channelCount) {
+    mKernels.resize(kernelsCount);
+
+    for (int kernel = 0; kernel < kernelsCount; ++kernel) {
+        int size = kernelsFromCenter[kernel] * 2 + 1;
+        std::vector cube(channelCount, std::vector(size, std::vector(size, 0.0)));
+        mKernels[kernel] = cube;
+    }
+}
+
+std::vector<std::vector<std::vector<double>>> ConvolutionLayer::convolution(const std::vector<std::vector<std::vector<double>>>& inputs) const {
+    if (inputs.empty() || inputs[0].empty() || inputs[0][0].empty()) {
+        throw std::invalid_argument("Input data is empty or not properly structured.");
+    }
+
+    for (const auto& kernel : mKernels) {
+        int kernelSize = kernel[0].size();
+        int kernel
+        int rows = inputs[0].size();
+
+        for (int row = 0; row < rows; ++row) {
+            int columns = inputs[0][row].size();
+            for (int center = 0; center < columns; ++center) {
+                for (auto& kernelChannel : kernel) {
+                    std::vector<double> resultRow(columns, 0.0);
+                }
+
+            }
+        }
+    }
+
+    return {{{1.0}}}; // Placeholder for actual convolution logic
+}
+
 // Neural Network //
 
 NeuralNetwork::NeuralNetwork(

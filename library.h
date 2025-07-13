@@ -86,6 +86,19 @@ constexpr double DEFAULT_ERROR_THRESHOLD = 1e-6;
 constexpr int DEFAULT_MAX_ITERATIONS = 1000;
 
 /**
+ * @brief A basic Convolution Layer
+ */
+class ConvolutionLayer{
+    std::vector<std::vector<std::vector<std::vector<double>>>> mKernels; // vector of 3D kernels, so a 4D vector [kernel][channel][row][value]
+public:
+    // Constructor
+    explicit ConvolutionLayer(const std::vector<int> kernelsFromCenter, int kernelsCount = 1, int channelCount = 1);
+
+    //Performs the convolution
+    std::vector<std::vector<std::vector<double>>> convolution(const std::vector<std::vector<std::vector<double>>>& inputs) const;
+};
+
+/**
 * @brief Initializes a feedforward neural network with randomly assigned weights for each perceptron (neuron).
 * The user specifies the number of neurons in the Input Layer, the structure of hidden layers, and the number of neurons in the output layer.
  */
