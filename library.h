@@ -140,23 +140,44 @@ public:
     // Performs a loss calculation
     // Returns the Mean Squared Error (MSE)
     double lossCalculation(std::vector<double> expectedValues,
-                            std::vector<double> outputValues);
+                           std::vector<double> outputValues);
 
     // Performs backpropagation
     std::vector<std::vector<double>> backPropagation(const std::vector<double>& expectedValues,
-                                                                    const std::vector<double>& outputActivations,
-                                                                    const std::vector<std::vector<double>>& activations,
-                                                                    const std::vector<std::vector<double>>& weightedSums);
+                                                           const std::vector<double>& outputActivations,
+                                                           const std::vector<std::vector<double>>& activations,
+                                                           const std::vector<std::vector<double>>& weightedSums);
 
     void weightUpdates(const std::vector<std::vector<double>>& activations,
-                              const std::vector<std::vector<double>>& deltaAllLayers,
-                              double learningRate);
+                             const std::vector<std::vector<double>>& deltaAllLayers,
+                             double learningRate);
 
     void training(const std::vector<double>& inputs,
-                           const std::vector<double>& expectedOutput,
-                           double learningRate = 0.05,
-                           int maxIterations = 1000,
-                           int printEvery = 50);
+                        const std::vector<double>& expectedOutput,
+                        double learningRate = 0.05,
+                        int maxIterations = 1000,
+                        int printEvery = 50);
+};
+
+/**
+ * @brief A basic Convolutional Neural Network, VGG structure.
+ */
+class ConvolutionalNeuralNetwork {
+    std::vector<std::vector<ConvolutionLayer>> mConvBlock;
+    NeuralNetwork mClassifier;
+public:
+    ConvolutionalNeuralNetwork(const std::vector<std::vector<ConvolutionLayer>>& convolutionBlocks, NeuralNetwork classifier) : mConvBlock(convolutionBlocks), mClassifier(classifier) {}
+
+    std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>> forward(const std::vector<std::vector<std::vector<double>>>& input);
+
+    double lossCalculation(std::vector<double> expectedValues,
+                           std::vector<double> outputValues);
+
+    void Training(std::vector<std::vector<std::vector<double>>> inputImages,
+                  std::vector<double>& expectedOutput,
+                  double learningRate = 0.05,
+                  int maxIterations = 1000,
+                  int printEvery = 50);
 };
 
 #endif //SYNAPSELIB_LIBRARY_H
