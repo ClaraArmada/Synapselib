@@ -173,11 +173,18 @@ public:
     double lossCalculation(std::vector<double> expectedValues,
                            std::vector<double> outputValues);
 
-    void Training(std::vector<std::vector<std::vector<double>>> inputImages,
-                  std::vector<double>& expectedOutput,
-                  double learningRate = 0.05,
-                  int maxIterations = 1000,
-                  int printEvery = 50);
+    std::vector<double> ConvolutionalNeuralNetwork::lossDerivative(std::vector<double> expected, std::vector<double> output);
+
+    std::vector<std::vector<double>> ConvolutionalNeuralNetwork::Backpropagation(const std::vector<double>& expectedValues,
+                                                                const std::vector<double>& outputActivations,
+                                                                const std::vector<std::vector<double>>& activations,
+                                                                const std::vector<std::vector<double>>& weightedSums);
+
+    void ConvolutionalNeuralNetwork::Training(std::vector<std::vector<std::vector<double>>> inputImages,
+        std::vector<double> expectedOutput,
+        double learningRate,
+        int maxIterations,
+        int printEvery);
 };
 
 #endif //SYNAPSELIB_LIBRARY_H

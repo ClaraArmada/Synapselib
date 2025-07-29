@@ -628,56 +628,34 @@ double ConvolutionalNeuralNetwork::lossCalculation(std::vector<double> expectedV
     return loss / expectedValues.size();
 }
 
-void ConvolutionalNeuralNetwork::Training(
-    std::vector<std::vector<std::vector<double>>> inputImages,
-    std::vector<double> expectedOutput,
-    double learningRate,
-    int maxIterations,
-    int printEvery
-) {
+std::vector<double> ConvolutionalNeuralNetwork::lossDerivative(std::vector<double> expected, std::vector<double> output) {
+    std::vector<double> dLoss(output.size());
+    for (size_t i = 0; i < output.size(); ++i) {
+        dLoss[i] = 2.0 * (output[i] - expected[i]) / output.size();  // gradient of MSE
+    }
+    return dLoss;
+}
+
+// std::vector<std::vector<double>> ConvolutionalNeuralNetwork::Backpropagation(const std::vector<double>& expectedValues,
+//                                                                 const std::vector<double>& outputActivations,
+//                                                                 std::vector<double> flattenedConvolutionalOutputs,
+//                                                                 const std::vector<std::vector<double>>& activations,
+//                                                                 const std::vector<std::vector<double>>& weightedSums) {
+//
+//
+// }
+
+void ConvolutionalNeuralNetwork::Training(std::vector<std::vector<std::vector<double>>> inputImages, std::vector<double> expectedOutput, double learningRate, int maxIterations, int printEvery) {
     for (int epoch = 0; epoch < maxIterations; ++epoch) {
-        // === Forward pass ===
         auto [nnOutput, activations, weightedSums] = forward(inputImages);
 
-        // === Loss computation ===
         double loss = lossCalculation(nnOutput, expectedOutput);
 
         if (epoch % printEvery == 0 || epoch == maxIterations - 1 || loss < 1e-6) {
             std::cout << "Epoch: " << epoch << " Loss: " << loss << std::endl;
         }
 
-        // === Fully connected layer backpropagation ===
         std::vector<std::vector<double>> deltas = mClassifier.backPropagation(expectedOutput, nnOutput, activations, weightedSums);
         mClassifier.weightUpdates(activations, deltas, learningRate);
-
-        // === Convert FC deltas to 3D volume for CNN backward ===
-        std::vector<std::vector<std::vector<double>>> deltaVolume = unflattenTo3D(deltas.back(), mLastConvShape);
-
-        // === Pooling backward (if used) ===
-        if (mUseMaxPooling) {
-            deltaVolume = maxPoolBackward(deltaVolume, mStoredMaxIndices); // from forward pass
-        }
-
-        // === ReLU backward ===
-        std::vector<std::vector<std::vector<double>>> reluGradient = applyReLUDerivative(mLastConvZ); // Z stored in forward
-
-        for (int c = 0; c < deltaVolume.size(); ++c) {
-            for (int y = 0; y < deltaVolume[c].size(); ++y) {
-                for (int x = 0; x < deltaVolume[c][y].size(); ++x) {
-                    deltaVolume[c][y][x] *= reluGradient[c][y][x];
-                }
-            }
-        }
-
-        // === Convolution layer weight update ===
-        std::vector<std::vector<std::vector<std::vector<double>>>> gradKernels =
-            computeConvGradients(mLastInput, deltaVolume, mKernelSize); // input before conv stored in forward
-
-        updateKernels(gradKernels, learningRate);
-
-        // === Optional: compute conv deltas to propagate further (if multi-conv) ===
-        // Not needed if this is the only conv layer
-
-        // END OF EPOCH
     }
 }
