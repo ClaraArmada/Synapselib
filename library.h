@@ -168,15 +168,17 @@ class ConvolutionalNeuralNetwork {
 public:
     ConvolutionalNeuralNetwork(const std::vector<std::vector<ConvolutionLayer>>& convolutionBlocks, NeuralNetwork classifier) : mConvBlock(convolutionBlocks), mClassifier(classifier) {}
 
-    std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>> forward(const std::vector<std::vector<std::vector<double>>>& input);
+    std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>, std::vector<double>>
+               forward(const std::vector<std::vector<std::vector<double>>>& input);
 
     double lossCalculation(std::vector<double> expectedValues,
                            std::vector<double> outputValues);
 
     std::vector<double> ConvolutionalNeuralNetwork::lossDerivative(std::vector<double> expected, std::vector<double> output);
 
-    std::vector<std::vector<double>> ConvolutionalNeuralNetwork::Backpropagation(const std::vector<double>& expectedValues,
+    std::vector<std::vector<double>> ConvolutionalNeuralNetwork::backPropagation(const std::vector<double>& expectedOutput,
                                                                 const std::vector<double>& outputActivations,
+                                                                std::vector<double> flattenedConvolutionalOutputs,
                                                                 const std::vector<std::vector<double>>& activations,
                                                                 const std::vector<std::vector<double>>& weightedSums);
 
