@@ -157,11 +157,14 @@ double getActivatedDerivative(double x, e_ActivationFunctions type, double alpha
 
 // Max Pooling Function //
 
-std::vector<std::vector<std::vector<double>>>
+std::pair<std::vector<std::vector<std::vector<double>>>,
+    std::vector<std::vector<std::vector<int>>>>
 maxPool2x2(const std::vector<std::vector<std::vector<double>>> &input) {
     std::vector<std::vector<std::vector<double>>> output;
+    std::vector<std::vector<std::vector<int>>> maxIndices;
     int channels = input.size();
     output.resize(channels);
+    maxIndices.resize(channels);
 
     for (int c = 0; c < channels; ++c) {
         int height = input[c].size();
@@ -170,24 +173,67 @@ maxPool2x2(const std::vector<std::vector<std::vector<double>>> &input) {
         int pooled_width = width / 2;
 
         output[c].resize(pooled_height, std::vector<double>(pooled_width, 0.0));
+        maxIndices[c].resize(pooled_height, std::vector<int>(pooled_width, 0));
 
         for (int i = 0; i < pooled_height; ++i) {
             for (int j = 0; j < pooled_width; ++j) {
                 double max_val = input[c][i * 2][j * 2];
+                int max_idx = (i * 2) * width + (j * 2);
                 for (int di = 0; di < 2; ++di) {
                     for (int dj = 0; dj < 2; ++dj) {
                         int row = i * 2 + di;
                         int col = j * 2 + dj;
                         if (row < height && col < width) {
-                            max_val = std::max(max_val, input[c][row][col]);
+                            if (input[c][row][col] > max_val) {
+                                max_val = input[c][row][col];
+                                max_idx = row * width + col;
+                            }
                         }
                     }
                 }
                 output[c][i][j] = max_val;
+                maxIndices[c][i][j] = max_idx;
             }
         }
     }
-    return output;
+    return {output, maxIndices};
+}
+
+// Max Unpooling Function //
+
+std::vector<std::vector<std::vector<std::vector<double>>>>
+maxPoolBackpropagation(const std::vector<std::vector<std::vector<std::vector<double>>>> &deltaPooled,
+                       const std::vector<std::vector<std::vector<int>>> &maxIndices,
+                       const std::vector<std::vector<std::vector<std::vector<double>>>> &originalInput) {
+    std::vector<std::vector<std::vector<std::vector<double>>>> deltaUnpooled(
+        originalInput.size(), // kernels
+        std::vector<std::vector<std::vector<double>>>(
+            originalInput[0].size(), // channels
+            std::vector<std::vector<double>>(
+                originalInput[0][0].size(), // height
+                std::vector<double>(originalInput[0][0][0].size(), 0.0) // width
+            )
+        )
+    );
+
+    for (int kernel_idx = 0; kernel_idx < deltaPooled.size(); ++kernel_idx) {
+        for (int channel = 0; channel < deltaPooled[kernel_idx].size(); ++channel) {
+            int height = originalInput[channel].size();
+            int width = originalInput[channel][0].size();
+
+            for (int pooledHeight = 0; pooledHeight < deltaPooled[channel].size(); ++pooledHeight) {
+                for (int pooledWidth = 0; pooledWidth < deltaPooled[channel][pooledHeight].size(); ++pooledWidth) {
+                    int flatIndex = maxIndices[channel][pooledHeight][pooledWidth];
+                    int row = flatIndex / width;
+                    int col = flatIndex % width;
+
+                    deltaUnpooled[kernel_idx][channel][row][col] += deltaPooled[kernel_idx][channel][pooledHeight][pooledWidth];
+                }
+            }
+        }
+    }
+
+    return deltaUnpooled;
 }
 
 // ReLU 3D //
@@ -217,15 +263,38 @@ std::vector<double> flatten(const std::vector<std::vector<std::vector<double>>> 
     return output;
 }
 
+// Unflatten //
+
+std::vector<std::vector<std::vector<double>>> unflatten(std::vector<double> flatVector, int channels, int height, int width) {
+    if (flatVector.size() != static_cast<size_t>(channels * height * width)) {
+        throw std::invalid_argument("Shape does not match vector siz.");
+    }
+
+    std::vector<std::vector<std::vector<double>>> output(channels,
+        std::vector<std::vector<double>>(height, std::vector<double>(width)));
+
+    for (int c = 0; c < channels; ++c) {
+        for (int h = 0; h < height; ++h) {
+            for (int w = 0; w < width; ++w) {
+                output[c][h][w] = flatVector[c * height * width + h * width + w];
+            }
+        }
+    }
+
+    return output;
+}
+
 // Reshape //
 
-std::vector<std::vector<std::vector<double>>> reshape(std::vector<double> &input, int channels, int height, int width) {
+std::vector<std::vector<std::vector<double>>> reshape(
+    std::vector<double> &input, int channels, int height, int width) {
+
     if (input.size() != static_cast<size_t>(channels * height * width)) {
         throw std::invalid_argument("Input size does not match the specified dimensions.");
     }
 
-    std::vector output(channels,
-        std::vector (height, std::vector<double>(width)));
+    std::vector<std::vector<std::vector<double>>> output(
+        channels, std::vector<std::vector<double>>(height, std::vector<double>(width)));
 
     for (int c = 0; c < channels; ++c) {
         for (int h = 0; h < height; ++h) {
@@ -312,68 +381,25 @@ void ActivatedPerceptron::training(const std::vector<double> &inputs, double exp
 }
 
 
-//  //
 
-ConvolutionLayer::ConvolutionLayer(const std::vector<int> kernelsFromCenter, int kernelsCount, int channelCount) {
-    mKernels.resize(kernelsCount);
+// Dendritic Neuron //
+// will do this later
 
-    for (int kernel = 0; kernel < kernelsCount; ++kernel) {
-        int size = kernelsFromCenter[kernel] * 2 + 1;
-        std::vector cube(channelCount, std::vector(size, std::vector(size, 0.0)));
-        mKernels[kernel] = cube;
-    }
-}
 
-std::vector<std::vector<std::vector<double> > > ConvolutionLayer::convolution(
-    const std::vector<std::vector<std::vector<double> > > &inputs) const {
-    if (inputs.empty() || inputs[0].empty() || inputs[0][0].empty()) {
-        throw std::invalid_argument("Input data is empty or not properly structured.");
-    }
 
-    std::vector<std::vector<std::vector<double> > > output;
-    output.resize(mKernels.size());
+// Graph Neural Network //
+// will do this later
 
-    int kernels = mKernels.size();
-    int channels = inputs.size();
-    int rows = inputs[0].size();
-    int columns = inputs[0][0].size();
 
-    for (int kernel = 0; kernel < kernels; ++kernel) {
-        int kernelCenter = mKernels[kernel][0].size() / 2;
 
-        output[kernel].resize(rows);
-        for (int row = 0; row < rows; ++row) {
-            output[kernel][row].resize(columns);
-            for (int col = 0; col < columns; ++col) {
-                double sum = 0.0;
+// Spiking Neuron //
+// will do this later
 
-                for (int channel = 0; channel < channels; ++channel) {
-                    int kernelRows = mKernels[kernel][channel].size();
-                    int kernelCols = mKernels[kernel][channel][0].size();
 
-                    for (int kr = 0; kr < kernelRows; ++kr) {
-                        for (int kc = 0; kc < kernelCols; ++kc) {
-                            int inputRow = row + (kr - kernelCenter);
-                            int inputCol = col + (kc - kernelCenter);
 
-                            double inputVal = 0.0;
-                            if (inputRow >= 0 && inputRow < rows &&
-                                inputCol >= 0 && inputCol < columns) {
-                                inputVal = inputs[channel][inputRow][inputCol];
-                            }
+//
 
-                            sum += inputVal * mKernels[kernel][channel][kr][kc];
-                        }
-                    }
-                }
 
-                output[kernel][row][col] = sum;
-            }
-        }
-    }
-
-    return output;
-}
 
 // Neural Network //
 
@@ -443,10 +469,10 @@ std::vector<double> NeuralNetwork::predict(const std::vector<double> &inputs) {
     return outputs;
 }
 
-std::tuple<std::vector<double>, std::vector<std::vector<double> >, std::vector<std::vector<double> > >
+std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>>
 NeuralNetwork::forwardPass(const std::vector<double> &inputs) {
-    std::vector<std::vector<double> > activations = {inputs};
-    std::vector<std::vector<double> > weightedSums;
+    std::vector<std::vector<double>> activations = {inputs};
+    std::vector<std::vector<double>> weightedSums;
 
     std::vector<double> previousOutputs = inputs;
 
@@ -502,12 +528,12 @@ double NeuralNetwork::lossCalculation(std::vector<double> expectedValues,
 }
 
 
-std::vector<std::vector<double> > NeuralNetwork::backPropagation(const std::vector<double> &expectedValues,
+std::vector<std::vector<double>> NeuralNetwork::backPropagation(const std::vector<double> &expectedValues,
                                                                  const std::vector<double> &outputActivations,
-                                                                 const std::vector<std::vector<double> > &activations,
-                                                                 const std::vector<std::vector<double> > &
+                                                                 const std::vector<std::vector<double>> &activations,
+                                                                 const std::vector<std::vector<double>> &
                                                                  weightedSums) {
-    std::vector<std::vector<double> > deltaAllLayers;
+    std::vector<std::vector<double>> deltaAllLayers;
 
     std::vector<double> outputDeltas;
     for (size_t j = 0; j < mOutputLayer.neurons.size(); ++j) {
@@ -551,8 +577,8 @@ std::vector<std::vector<double> > NeuralNetwork::backPropagation(const std::vect
 }
 
 
-void NeuralNetwork::weightUpdates(const std::vector<std::vector<double> > &activations,
-                                  const std::vector<std::vector<double> > &deltaAllLayers, double learningRate) {
+void NeuralNetwork::weightUpdates(const std::vector<std::vector<double>> &activations,
+                                  const std::vector<std::vector<double>> &deltaAllLayers, double learningRate) {
     // Hidden layers
     for (int layer_idx = 0; layer_idx < mHiddenLayers.size(); ++layer_idx) {
         const std::vector<double> &prevActivations = activations[layer_idx];
@@ -609,7 +635,7 @@ void NeuralNetwork::training(const std::vector<double> &inputs,
             std::cout << "Epoch: " << epoch << " Loss: " << loss << std::endl;
         }
 
-        std::vector<std::vector<double> > deltaAllLayers = backPropagation(
+        std::vector<std::vector<double>> deltaAllLayers = backPropagation(
             expectedOutput, outputActivations, activations, weightedSums);
         weightUpdates(activations, deltaAllLayers, learningRate);
 
@@ -619,18 +645,102 @@ void NeuralNetwork::training(const std::vector<double> &inputs,
     }
 }
 
-std::tuple<std::vector<double>, std::vector<std::vector<double> >, std::vector<std::vector<double> >, std::vector<
-    double> > ConvolutionalNeuralNetwork::forward(const std::vector<std::vector<std::vector<double> > > &input) {
+
+
+// Convolutional Layer //
+
+ConvolutionLayer::ConvolutionLayer(const std::vector<int> kernelsFromCenter, int kernelsCount, int channelCount) {
+    mKernels.resize(kernelsCount);
+
+    for (int kernel = 0; kernel < kernelsCount; ++kernel) {
+        int size = kernelsFromCenter[kernel] * 2 + 1;
+        std::vector cube(channelCount, std::vector(size, std::vector(size, 0.0)));
+        mKernels[kernel] = cube;
+    }
+}
+
+std::vector<std::vector<std::vector<double>>> ConvolutionLayer::convolution(
+    const std::vector<std::vector<std::vector<double>>> &inputs) const {
+    if (inputs.empty() || inputs[0].empty() || inputs[0][0].empty()) {
+        throw std::invalid_argument("Input data is empty or not properly structured.");
+    }
+
+    std::vector<std::vector<std::vector<double>>> output;
+    output.resize(mKernels.size());
+
+    int kernels = mKernels.size();
+    int channels = inputs.size();
+    int rows = inputs[0].size();
+    int columns = inputs[0][0].size();
+
+    for (int kernel = 0; kernel < kernels; ++kernel) {
+        int kernelCenter = mKernels[kernel][0].size() / 2;
+
+        output[kernel].resize(rows);
+        for (int row = 0; row < rows; ++row) {
+            output[kernel][row].resize(columns);
+            for (int col = 0; col < columns; ++col) {
+                double sum = 0.0;
+
+                for (int channel = 0; channel < channels; ++channel) {
+                    int kernelRows = mKernels[kernel][channel].size();
+                    int kernelCols = mKernels[kernel][channel][0].size();
+
+                    for (int kr = 0; kr < kernelRows; ++kr) {
+                        for (int kc = 0; kc < kernelCols; ++kc) {
+                            int inputRow = row + (kr - kernelCenter);
+                            int inputCol = col + (kc - kernelCenter);
+
+                            double inputVal = 0.0;
+                            if (inputRow >= 0 && inputRow < rows &&
+                                inputCol >= 0 && inputCol < columns) {
+                                inputVal = inputs[channel][inputRow][inputCol];
+                            }
+
+                            sum += inputVal * mKernels[kernel][channel][kr][kc];
+                        }
+                    }
+                }
+
+                output[kernel][row][col] = sum;
+            }
+        }
+    }
+
+    return output;
+}
+
+// Convolutional Neural Network //
+
+std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>, std::vector<
+    double>> ConvolutionalNeuralNetwork::forward(const std::vector<std::vector<std::vector<double>>> &input) {
     auto output = input;
+    mConvolutionInput.clear();
+    mPreactivationZ.clear();
+    mActivationOutput.clear();
+    mFlattenInput.clear();
+    mMaxPoolIndices.clear();
 
     for (auto &block: mConvBlock) {
+        int blockIndex = &block - &mConvBlock[0]; // Get the index of the current block
+
         for (const auto &layer: block) {
+            int layerIndex = &layer - &block[0]; // Get the index of the current layer
+
+            mConvolutionInput[blockIndex][layerIndex].push_back(output); //-Cache-//
             output = layer.convolution(output);
+            mPreactivationZ[blockIndex][layerIndex].push_back(output); //-Cache-//
             output = ReLU3D(output);
+            mActivationOutput[blockIndex][layerIndex].push_back(output); //-Cache-//
+
+            // T-T o em geee the operations ToT this is insane!
         }
 
-        output = maxPool2x2(output);
+        auto [pooledOutput, poolIndices] = maxPool2x2(output);
+        output = pooledOutput;
+        mMaxPoolIndices.push_back(poolIndices); //-Cache-//
     }
+    mFlattenInput.push_back(output); //-Cache-//
     std::vector<double> flattenedOutput = flatten(output);
 
     auto [nnOutput, activations, weightedSums] = mClassifier.forwardPass(flattenedOutput);
@@ -663,20 +773,81 @@ ConvolutionalNeuralNetwork::lossDerivative(std::vector<double> expected, std::ve
     return dLoss;
 }
 
-std::vector<std::vector<double> > ConvolutionalNeuralNetwork::backPropagation(const std::vector<double>& expectedOutput,
+std::vector<std::vector<double>> ConvolutionalNeuralNetwork::backPropagation(const std::vector<double>& expectedOutput,
                                                                               const std::vector<double>& outputActivations,
                                                                               std::vector<double> flattenedConvolutionalOutputs,
-                                                                              const std::vector<std::vector<double> >& activations,
-                                                                              const std::vector<std::vector<double> >& weightedSums) {
+                                                                              const std::vector<std::vector<double>>& activations,
+                                                                              const std::vector<std::vector<double>>& weightedSums) {
     std::vector<double> outputError = lossDerivative(expectedOutput, outputActivations);
-    reshapedDelta =
+    std::vector<std::vector<std::vector<double>>> classifierOutputDeltas = reshape(outputError, 1, 1, mClassifier.mOutputLayer.neurons.size());
 
-    for (int layer_idx = static_cast<int>(mClassifier.mHiddenLayers.size()) - 1; layer_idx >= 0; --layer_idx) {
-        delta =
+    std::vector<double> deltas;
+    for (size_t i = 0; i < mClassifier.mOutputLayer.neurons.size(); ++i) {
+        double z = weightedSums.back()[i];
+        double derivative = getActivatedDerivative(z, mClassifier.mOutputLayer.activationFunction, mClassifier.mOutputLayer.alpha);
+        deltas.push_back(classifierOutputDeltas[0][0][i] * derivative);
+    }
+
+    auto lastFeatureMap = mFlattenInput.back();
+    int channels = lastFeatureMap.size();
+    int height = lastFeatureMap[0].size();
+    int width = lastFeatureMap[0][0].size();
+
+    std::vector<std::vector<std::vector<double>>> unflattenedDelta = unflatten(deltas, channels, height, width);
+
+    for (int block = mConvBlock.size() - 1; block >= 0; --block) {
+        // 🏗️ backprop max pooling
+        // Prepare 4D delta to match maxPoolBackpropagation signature: [kernel][channel][row][col]
+        if (mActivationOutput[block].empty()) {
+            throw std::runtime_error("Activation output for block is empty.");
+        }
+        const auto &origInput4D = mActivationOutput[block].back();
+
+        // Broadcast the 3D unflattenedDelta across the kernel dimension
+        std::vector<std::vector<std::vector<std::vector<double>>>> deltaPooled4D;
+        deltaPooled4D.reserve(origInput4D.size());
+        for (size_t k = 0; k < origInput4D.size(); ++k) {
+            deltaPooled4D.push_back(unflattenedDelta);
+        }
+
+        std::vector<std::vector<std::vector<std::vector<double>>>> maxPoolDelta =
+            maxPoolBackpropagation(deltaPooled4D, mMaxPoolIndices[block], origInput4D);
+
+        std::vector<std::vector<std::vector<std::vector<double>>>> previousLayerDelta;
+
+        for (int layer = mConvBlock[block].size() - 1; layer >= 0; --layer) {
+            std::vector<std::vector<std::vector<std::vector<double>>>> localDelta(
+                mConvBlock[block][layer].mKernels.size(), // num kernels
+                std::vector<std::vector<std::vector<double>>>(
+                    mConvBlock[block][layer].mKernels[0].size(), // channels
+                    std::vector<std::vector<double>>(
+                        mConvBlock[block][layer].mKernels[0][0].size(), // rows
+                        std::vector<double>(mConvBlock[block][layer].mKernels[0][0].size(), 0.0) // cols
+                    )
+                )
+            );
+            for (int kernel_idx = 0; kernel_idx < mConvBlock[block][layer].mKernels.size(); ++kernel_idx) {
+                auto &kernel = mConvBlock[block][layer].mKernels[kernel_idx];
+                for (int channel = kernel.size() - 1; channel >= 0; --channel) {
+                    for (int row = kernel[channel].size() - 1; row >= 0; --row) {
+                        for (int value = kernel[channel][row].size() - 1; value >= 0; --value) {
+                            double d_ReLU_z = getActivatedDerivative(mPreactivationZ[block][layer][kernel_idx][channel][row][value], e_ActivationFunctions::ReLU, 1.0);
+                            if (layer == mConvBlock[block].size() - 1) {
+                                localDelta[kernel_idx][channel][row][value] = maxPoolDelta[kernel_idx][channel][row][value] * d_ReLU_z;
+                            } else {
+                                localDelta[kernel_idx][channel][row][value] = previousLayerDelta[kernel_idx][channel][row][value] * d_ReLU_z; // prev layer delta doesn't exist yet
+                            }
+                        }
+                    }
+                    // computing weight/gradient step, under construction
+                }
+            }
+            previousLayerDelta = localDelta;
+        }
     }
 }
 
-void ConvolutionalNeuralNetwork::Training(std::vector<std::vector<std::vector<double> > > inputImages,
+void ConvolutionalNeuralNetwork::Training(std::vector<std::vector<std::vector<double>>> inputImages,
                                           std::vector<double> expectedOutput, double learningRate, int maxIterations,
                                           int printEvery) {
     for (int epoch = 0; epoch < maxIterations; ++epoch) {
@@ -688,10 +859,10 @@ void ConvolutionalNeuralNetwork::Training(std::vector<std::vector<std::vector<do
             std::cout << "Epoch: " << epoch << " Loss: " << loss << std::endl;
         }
 
-        std::vector<std::vector<double> > deltas = mClassifier.backPropagation(
+        std::vector<std::vector<double>> deltas = mClassifier.backPropagation(
             expectedOutput, nnOutput, activations, weightedSums);
         mClassifier.weightUpdates(activations, deltas, learningRate);
 
-        std::vector<std::vector<double> > deltaAllLayers = backPropagation(expectedOutput, nnOutput, flattenedConvolutionalOutput, activations, weightedSums);
+        std::vector<std::vector<double>> deltaAllLayers = backPropagation(expectedOutput, nnOutput, flattenedConvolutionalOutput, activations, weightedSums);
     }
 }

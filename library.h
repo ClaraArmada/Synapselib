@@ -89,8 +89,8 @@ constexpr int DEFAULT_MAX_ITERATIONS = 1000;
  * @brief A basic Convolution Layer
  */
 class ConvolutionLayer{
-    std::vector<std::vector<std::vector<std::vector<double>>>> mKernels; // vector of 3D kernels, so a 4D vector [kernel][channel][row][value]
 public:
+    std::vector<std::vector<std::vector<std::vector<double>>>> mKernels; // vector of 3D kernels, so a 4D vector [kernel][channel][row][value]
     // Constructor
     explicit ConvolutionLayer(const std::vector<int> kernelsFromCenter, int kernelsCount = 1, int channelCount = 1);
 
@@ -104,10 +104,10 @@ public:
  */
 class NeuralNetwork {
     std::unique_ptr<std::mt19937> m_generator;
+public:
     int mInputLayer;
     std::vector<Layer> mHiddenLayers;
     Layer mOutputLayer;
-public:
     // Constructor
     explicit NeuralNetwork(int inputLayerLength,
                           const std::vector<std::pair<int, e_ActivationFunctions>>& hiddenLayersProperties,
@@ -163,8 +163,16 @@ public:
  * @brief A basic Convolutional Neural Network, VGG structure.
  */
 class ConvolutionalNeuralNetwork {
-    std::vector<std::vector<ConvolutionLayer>> mConvBlock;
+    std::vector<std::vector<ConvolutionLayer>> mConvBlock; // block => class containing [block][convolution][kernel][channel][row][value]
     NeuralNetwork mClassifier;
+
+    // Cache for backpropagation
+    std::vector<std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>>> mConvolutionInput; // cache of input to each convolution layer for backpropagation [block][convolution][kernel][row][column][value]
+    std::vector<std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>>> mPreactivationZ; // cache of pre-activation values for each convolution layer [block][convolution][kernel][row][column][value]
+    std::vector<std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>>> mActivationOutput; // cache of activation outputs for each convolution layer [block][convolution][kernel][row][column][value]
+    std::vector<std::vector<std::vector<std::vector<double>>>> mFlattenInput; // cache of the input to the flatten function [block][convolution][kernel][value]
+    std::vector<std::vector<std::vector<std::vector<int>>>> mMaxPoolIndices; // cache of the index of each max pooling
+
 public:
     ConvolutionalNeuralNetwork(const std::vector<std::vector<ConvolutionLayer>>& convolutionBlocks, NeuralNetwork classifier) : mConvBlock(convolutionBlocks), mClassifier(classifier) {}
 
