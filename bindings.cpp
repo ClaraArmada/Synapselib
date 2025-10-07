@@ -37,6 +37,7 @@ PYBIND11_MODULE(Synapselib, m) {
 
     // NeuralNetwork
     py::class_<NeuralNetwork>(m, "NeuralNetwork")
+        .def(py::init<>())  // default constructor
         .def(py::init<int,
                       const std::vector<std::pair<int, e_ActivationFunctions>>&,
                       std::pair<int, e_ActivationFunctions>,
@@ -50,4 +51,27 @@ PYBIND11_MODULE(Synapselib, m) {
         .def("predict", &NeuralNetwork::predict)
         .def("forward_pass", &NeuralNetwork::forwardPass)
         .def("train", &NeuralNetwork::training);
+
+    // ConvolutionLayer
+    py::class_<ConvolutionLayer>(m, "ConvolutionLayer")
+        .def(py::init<const std::vector<int>&, int, int>(),
+             py::arg("kernelsFromCenter"),
+             py::arg("kernelsCount"),
+             py::arg("channelCount"))
+        .def("convolution", &ConvolutionLayer::convolution)
+        .def("update_weights", &ConvolutionLayer::updateWeights);
+
+    // ConvolutionalNeuralNetwork
+    py::class_<ConvolutionalNeuralNetwork>(m, "ConvolutionalNeuralNetwork")
+        .def(py::init<>())  // default constructor
+        .def(py::init<const std::vector<std::vector<ConvolutionLayer>>&,
+                      const NeuralNetwork&>(),
+             py::arg("convolutionBlocks"),
+             py::arg("classifier"))
+        .def("forward", &ConvolutionalNeuralNetwork::forward)
+        .def("loss_calculation", &ConvolutionalNeuralNetwork::lossCalculation)
+        .def("loss_derivative", &ConvolutionalNeuralNetwork::lossDerivative)
+        .def("back_propagation", &ConvolutionalNeuralNetwork::backPropagation)
+        .def("weight_updates", &ConvolutionalNeuralNetwork::weightUpdates)
+        .def("train", &ConvolutionalNeuralNetwork::Training);
 }

@@ -96,6 +96,8 @@ public:
 
     //Performs the convolution
     std::vector<std::vector<std::vector<double>>> convolution(const std::vector<std::vector<std::vector<double>>>& inputs) const;
+
+    void updateWeights(const std::vector<std::vector<std::vector<std::vector<double>>>>& gradients, double learningRate);
 };
 
 /**
@@ -109,6 +111,8 @@ public:
     std::vector<Layer> mHiddenLayers;
     Layer mOutputLayer;
     // Constructor
+    NeuralNetwork();
+
     explicit NeuralNetwork(int inputLayerLength,
                           const std::vector<std::pair<int, e_ActivationFunctions>>& hiddenLayersProperties,
                           std::pair<int, e_ActivationFunctions> outputLayerProperties,
@@ -116,16 +120,26 @@ public:
                           double bias = 0.0);
 
     // Copy constructor
-    NeuralNetwork(const NeuralNetwork& other);
+    NeuralNetwork(const NeuralNetwork& other)
+    : mInputLayer(other.mInputLayer),
+      mHiddenLayers(other.mHiddenLayers),
+      mOutputLayer(other.mOutputLayer),
+      m_generator(std::make_unique<std::mt19937>(*other.m_generator))
+    {}
 
     // Move constructor
-    NeuralNetwork(NeuralNetwork&& other) noexcept;
+    NeuralNetwork(NeuralNetwork&& other) noexcept
+    : mInputLayer(other.mInputLayer),
+      mHiddenLayers(std::move(other.mHiddenLayers)),
+      mOutputLayer(std::move(other.mOutputLayer)),
+      m_generator(std::move(other.m_generator))
+    {}
 
     // Copy assignment
     NeuralNetwork& operator=(const NeuralNetwork& other);
 
     // Move assignment
-    NeuralNetwork& operator=(NeuralNetwork&& other) noexcept;
+    NeuralNetwork& operator=(NeuralNetwork&&) noexcept = default;
 
     // Destructor
     ~NeuralNetwork() = default;
@@ -170,11 +184,16 @@ class ConvolutionalNeuralNetwork {
     std::vector<std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>>> mConvolutionInput; // cache of input to each convolution layer for backpropagation [block][convolution][kernel][row][column][value]
     std::vector<std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>>> mPreactivationZ; // cache of pre-activation values for each convolution layer [block][convolution][kernel][row][column][value]
     std::vector<std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>>> mActivationOutput; // cache of activation outputs for each convolution layer [block][convolution][kernel][row][column][value]
-    std::vector<std::vector<std::vector<std::vector<double>>>> mFlattenInput; // cache of the input to the flatten function [block][convolution][kernel][value]
+    std::vector<std::vector<std::vector<std::vector<double>>>> mFlattenInput; // cache of the input to the flatten function [kernel][row][column][value]
     std::vector<std::vector<std::vector<std::vector<int>>>> mMaxPoolIndices; // cache of the index of each max pooling
 
 public:
-    ConvolutionalNeuralNetwork(const std::vector<std::vector<ConvolutionLayer>>& convolutionBlocks, NeuralNetwork classifier) : mConvBlock(convolutionBlocks), mClassifier(classifier) {}
+    ConvolutionalNeuralNetwork() = default;
+
+    ConvolutionalNeuralNetwork(
+        const std::vector<std::vector<ConvolutionLayer>>& convBlocks,
+        NeuralNetwork classifier)
+        : mConvBlock(convBlocks), mClassifier(std::move(classifier)) {}
 
     std::tuple<std::vector<double>, std::vector<std::vector<double>>, std::vector<std::vector<double>>, std::vector<double>>
                forward(const std::vector<std::vector<std::vector<double>>>& input);
@@ -182,19 +201,21 @@ public:
     double lossCalculation(std::vector<double> expectedValues,
                            std::vector<double> outputValues);
 
-    std::vector<double> ConvolutionalNeuralNetwork::lossDerivative(std::vector<double> expected, std::vector<double> output);
+    std::vector<double> lossDerivative(std::vector<double> expected, std::vector<double> output);
 
-    std::vector<std::vector<double>> ConvolutionalNeuralNetwork::backPropagation(const std::vector<double>& expectedOutput,
-                                                                const std::vector<double>& outputActivations,
-                                                                std::vector<double> flattenedConvolutionalOutputs,
-                                                                const std::vector<std::vector<double>>& activations,
-                                                                const std::vector<std::vector<double>>& weightedSums);
+    void updateWeights(const std::vector<std::vector<std::vector<std::vector<double>>>>& gradients, double learningRate);
 
-    void ConvolutionalNeuralNetwork::Training(std::vector<std::vector<std::vector<double>>> inputImages,
-        std::vector<double> expectedOutput,
-        double learningRate,
-        int maxIterations,
-        int printEvery);
+    std::vector<std::vector<double>> backPropagation(const std::vector<double> &expectedOutput,
+        const std::vector<double> &outputActivations,
+        const std::vector<std::vector<double>> &weightedSums);
+
+    void weightUpdates(const std::vector<std::vector<std::vector<std::vector<double>>>> &gradients, double learningRate);
+
+    void Training(std::vector<std::vector<std::vector<double>>> inputImages,
+                                              std::vector<double> expectedOutput,
+                                              double learningRate,
+                                              int maxIterations,
+                                              int printEvery);
 };
 
 #endif //SYNAPSELIB_LIBRARY_H
